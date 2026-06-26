@@ -4,11 +4,28 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
+	"strconv"
 	"strings"
 )
 
 const defaultMatcher = "Bash|Grep|mcp__.*"
+
+// hookCommand returns the command string written into settings.json. It pins an
+// absolute path to the ctk binary so the hook works even when launched from a
+// GUI/IDE (e.g. GoLand) whose PATH lacks Homebrew. LookPath is preferred because
+// it yields the stable bin symlink (survives `brew upgrade`); os.Executable is a
+// fallback; bare "ctk" is the last resort.
+func hookCommand() string {
+	if p, err := exec.LookPath("ctk"); err == nil && p != "" {
+		return strconv.Quote(p) + " hook"
+	}
+	if p, err := os.Executable(); err == nil && p != "" {
+		return strconv.Quote(p) + " hook"
+	}
+	return "ctk hook"
+}
 
 func cmdInit(args []string) {
 	matcher := defaultMatcher
@@ -31,10 +48,11 @@ func cmdInit(args []string) {
 	settingsPath := resolveSettings(global, path)
 	m := readSettings(settingsPath)
 
+	cmd := hookCommand()
 	entry := map[string]interface{}{
 		"matcher": matcher,
 		"hooks": []interface{}{
-			map[string]interface{}{"type": "command", "command": "ctk hook"},
+			map[string]interface{}{"type": "command", "command": cmd},
 		},
 	}
 	list := append(filterOutCtk(getPostToolUse(m)), entry)
@@ -44,9 +62,9 @@ func cmdInit(args []string) {
 		fmt.Fprintln(os.Stderr, "ctk: failed to write settings:", err)
 		os.Exit(1)
 	}
-	fmt.Printf("Installed ctk hook → %s\n  matcher: %s\n  command: ctk hook\n\n"+
+	fmt.Printf("Installed ctk hook → %s\n  matcher: %s\n  command: %s\n\n"+
 		"Restart Claude Code (or /hooks reload) to activate. Verify with /context.\n",
-		settingsPath, matcher)
+		settingsPath, matcher, cmd)
 }
 
 func cmdUninstall(args []string) {
