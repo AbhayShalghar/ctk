@@ -41,10 +41,21 @@ projection; generic JSON → cap arrays, drop empty fields, truncate strings;
 ## Install
 
 ```bash
-brew install AbhayShalghar/tap/ctk     # macOS; Linux: grab the tarball from Releases
-ctk init --global                      # wire the hook into ~/.claude/settings.json
-# restart Claude Code (or /hooks reload), then: ctk gain
+brew trust abhayshalghar/tap           # one-time: approve the tap (required for casks)
+brew install AbhayShalghar/tap/ctk     # install the binary (macOS)
+ctk init --global                      # turn it on for every project
+# then fully quit & reopen Claude Code, and check: ctk gain --global
 ```
+
+> **`brew trust` is required.** Homebrew refuses to load casks from third-party
+> taps until you approve them once. Skip it and you'll see
+> *"Refusing to load cask … from untrusted tap"*.
+>
+> **Linux:** casks are macOS-only — grab `ctk_linux_*.tar.gz` from the
+> [Releases](https://github.com/AbhayShalghar/ctk/releases) page and put `ctk` on your PATH.
+>
+> **Each person runs `ctk init --global` once** — installing the binary doesn't
+> enable the hook by itself.
 
 Per-repo instead of global:
 
