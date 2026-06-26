@@ -41,7 +41,7 @@ projection; generic JSON → cap arrays, drop empty fields, truncate strings;
 ## Install
 
 ```bash
-brew install AbhayShalghar/tap/ctk     # once the tap is published (see Releasing)
+brew install AbhayShalghar/tap/ctk     # macOS; Linux: grab the tarball from Releases
 ctk init --global                      # wire the hook into ~/.claude/settings.json
 # restart Claude Code (or /hooks reload), then: ctk gain
 ```
@@ -100,10 +100,16 @@ go build -o ctk .    # local binary
 
 ## Releasing (Homebrew)
 
-1. Create a public repo `AbhayShalghar/homebrew-tap` (one time).
-2. `git tag v0.1.0 && git push origin v0.1.0`
-3. `goreleaser release --clean` — cross-compiles darwin/linux × amd64/arm64 and
-   commits the formula to the tap. Users then `brew install AbhayShalghar/tap/ctk`.
+The tap `AbhayShalghar/homebrew-tap` already exists. To cut a release:
+
+1. `git tag vX.Y.Z && git push origin vX.Y.Z`
+2. `GITHUB_TOKEN=$(gh auth token) goreleaser release --clean`
+
+That cross-compiles darwin/linux × amd64/arm64, publishes the GitHub release, and
+commits a Homebrew **cask** to the tap under `Casks/`. macOS users then
+`brew install AbhayShalghar/tap/ctk`. Casks are macOS-only, so Linux users install
+by downloading the `ctk_linux_*.tar.gz` asset from the release. The cask's
+post-install hook strips the Gatekeeper quarantine so the unsigned binary runs.
 
 ## Roadmap
 

@@ -25,21 +25,26 @@ archives:
 checksum:
   name_template: "checksums.txt"
 
-# Publishes a formula to github.com/AbhayShalghar/homebrew-tap so users can:
-#   brew install AbhayShalghar/tap/ctk
-# Create that (public) repo once; GoReleaser commits the formula on each release.
-brews:
+# Publishes a Homebrew CASK to github.com/AbhayShalghar/homebrew-tap (under Casks/)
+# so macOS users can: brew install AbhayShalghar/tap/ctk
+# Casks are macOS-only; Linux users grab ctk_linux_*.tar.gz from the release.
+# The post-install hook strips the Gatekeeper quarantine so the unsigned binary runs.
+homebrew_casks:
   - name: ctk
+    binaries:
+      - ctk
     repository:
       owner: AbhayShalghar
       name: homebrew-tap
+      branch: main
     homepage: "https://github.com/AbhayShalghar/ctk"
     description: "Context Token Killer — compresses Claude Code tool output (MCP, native tools, Bash)"
-    license: "MIT"
-    install: |
-      bin.install "ctk"
-    test: |
-      system "#{bin}/ctk", "version"
+    hooks:
+      post:
+        install: |
+          if OS.mac?
+            system_command "/usr/bin/xattr", args: ["-dr", "com.apple.quarantine", "#{staged_path}/ctk"]
+          end
 
 release:
   draft: false
