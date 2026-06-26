@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"strconv"
 	"strings"
 )
 
@@ -19,6 +20,80 @@ type statRec struct {
 	Saved int    `json:"saved"`
 	proj  string // populated in --global mode (the project dir owning the stats)
 }
+
+// ---- presentation ---------------------------------------------------------
+
+var useColor = func() bool {
+	if os.Getenv("NO_COLOR") != "" {
+		return false
+	}
+	fi, err := os.Stdout.Stat()
+	return err == nil && fi.Mode()&os.ModeCharDevice != 0
+}()
+
+const (
+	cReset  = "\033[0m"
+	cBold   = "\033[1m"
+	cGreen  = "\033[32m"
+	cYellow = "\033[33m"
+	cRed    = "\033[31m"
+	cCyan   = "\033[36m"
+	cGray   = "\033[90m"
+)
+
+func paint(s, code string) string {
+	if !useColor || code == "" {
+		return s
+	}
+	return code + s + cReset
+}
+
+func humanize(n int) string {
+	f := float64(n)
+	switch {
+	case f >= 1e6:
+		return fmt.Sprintf("%.1fM", f/1e6)
+	case f >= 1e3:
+		return fmt.Sprintf("%.1fK", f/1e3)
+	default:
+		return strconv.Itoa(n)
+	}
+}
+
+func pctColor(p int) string {
+	switch {
+	case p >= 40:
+		return cGreen
+	case p >= 20:
+		return cYellow
+	default:
+		return cRed
+	}
+}
+
+func ljust(s string, w int) string {
+	if len(s) >= w {
+		return s
+	}
+	return s + strings.Repeat(" ", w-len(s))
+}
+func rjust(s string, w int) string {
+	if len(s) >= w {
+		return s
+	}
+	return strings.Repeat(" ", w-len(s)) + s
+}
+
+func cell(s string, w int, right bool, color string) string {
+	if right {
+		s = rjust(s, w)
+	} else {
+		s = ljust(s, w)
+	}
+	return paint(s, color)
+}
+
+// ---- command --------------------------------------------------------------
 
 func cmdGain(args []string) {
 	history, reset, global := false, false, false
@@ -33,14 +108,13 @@ func cmdGain(args []string) {
 		}
 	}
 
-	// Gather records (+ the stats files they came from, for --reset).
 	var recs []statRec
 	var files []string
 	if global {
 		home, _ := os.UserHomeDir()
 		files = findStatsFiles(home)
 		for _, f := range files {
-			proj := filepath.Dir(filepath.Dir(f)) // parent of .ctk
+			proj := filepath.Dir(filepath.Dir(f))
 			for _, r := range loadStats(f) {
 				r.proj = proj
 				recs = append(recs, r)
@@ -57,15 +131,19 @@ func cmdGain(args []string) {
 		for _, f := range files {
 			_ = os.Remove(f)
 		}
-		fmt.Printf("ctk stats cleared%s.\n", map[bool]string{true: " (all projects)", false: ""}[global])
+		scope := ""
+		if global {
+			scope = " (all projects)"
+		}
+		fmt.Printf("ctk stats cleared%s.\n", scope)
 		return
 	}
 
 	if len(recs) == 0 {
 		if global {
-			fmt.Println("No ctk savings recorded in any project yet. Run some tool calls with the hook active.")
+			fmt.Println(paint("No ctk savings recorded in any project yet.", cYellow))
 		} else {
-			fmt.Println("No ctk savings recorded in this folder yet. Try `ctk gain --global`, or run tool calls here.")
+			fmt.Println(paint("No ctk savings in this folder yet.", cYellow) + " Try " + paint("ctk gain --global", cBold) + ".")
 		}
 		return
 	}
@@ -76,23 +154,11 @@ func cmdGain(args []string) {
 		return
 	}
 
-	fmt.Println(map[bool]string{true: "ctk gain (all projects)", false: "ctk gain"}[global])
-	fmt.Println()
-	renderTotals(recs)
-	printTable("by tool", groupBy(recs, func(r statRec) string { return r.Tool }))
-	printTable("by content kind", groupBy(recs, func(r statRec) string { return r.Kind }))
+	scope := ""
 	if global {
-		home, _ := os.UserHomeDir()
-		printTable("by project", groupBy(recs, func(r statRec) string { return shortenPath(r.proj, home) }))
+		scope = " (all projects)"
 	}
-	hint := "(run with --history for recent calls, --reset to clear"
-	if !global {
-		hint += ", --global for all projects"
-	}
-	fmt.Println("\n" + hint + ")")
-}
 
-func renderTotals(recs []statRec) {
 	var inTok, saved int
 	for _, r := range recs {
 		inTok += r.InTok
@@ -102,10 +168,67 @@ func renderTotals(recs []statRec) {
 	if inTok > 0 {
 		pct = int(float64(saved)/float64(inTok)*100 + 0.5)
 	}
-	fmt.Printf("  tokens in        %s\n", comma(inTok))
-	fmt.Printf("  tokens out       %s\n", comma(inTok-saved))
-	fmt.Printf("  tokens saved     %s  (%d%% reduction)\n", comma(saved), pct)
-	fmt.Printf("  compressions     %s\n", comma(len(recs)))
+
+	fmt.Println()
+	fmt.Println(paint("ctk · Token Savings"+scope, cBold+cGreen))
+	fmt.Println(paint(strings.Repeat("═", 52), cGray))
+	fmt.Println()
+	fmt.Printf("  %s %s\n", ljust("Compressions", 16), paint(comma(len(recs)), cBold))
+	fmt.Printf("  %s %s\n", ljust("Tokens in", 16), humanize(inTok))
+	fmt.Printf("  %s %s\n", ljust("Tokens out", 16), humanize(inTok-saved))
+	fmt.Printf("  %s %s  %s\n", ljust("Tokens saved", 16),
+		paint(humanize(saved), cBold+cGreen), paint(fmt.Sprintf("(%d%% saved)", pct), pctColor(pct)))
+
+	filled := pct * 24 / 100
+	meter := paint(strings.Repeat("█", filled), pctColor(pct)) + paint(strings.Repeat("░", 24-filled), cGray)
+	fmt.Printf("  %s %s %s\n", ljust("Efficiency", 16), meter, paint(fmt.Sprintf("%d%%", pct), cBold+pctColor(pct)))
+
+	renderTable("By tool", groupBy(recs, func(r statRec) string { return r.Tool }))
+	renderTable("By content kind", groupBy(recs, func(r statRec) string { return r.Kind }))
+	if global {
+		home, _ := os.UserHomeDir()
+		renderTable("By project", groupBy(recs, func(r statRec) string { return shortenPath(r.proj, home) }))
+	}
+
+	hint := "--history for recent calls · --reset to clear"
+	if !global {
+		hint += " · --global for all projects"
+	}
+	fmt.Println()
+	fmt.Println(paint("  "+hint, cGray))
+}
+
+func renderTable(title string, gs []group) {
+	maxSaved := 0
+	for _, g := range gs {
+		if g.saved > maxSaved {
+			maxSaved = g.saved
+		}
+	}
+	fmt.Println()
+	fmt.Println(paint(title, cBold+cCyan))
+	// header
+	fmt.Println("  " + cell("#", 3, true, cGray) + " " + cell("name", 38, false, cGray) +
+		" " + cell("calls", 6, true, cGray) + " " + cell("saved", 8, true, cGray) +
+		" " + cell("cut", 5, true, cGray) + "  " + paint("impact", cGray))
+	for i, g := range gs {
+		red := 0
+		if g.inTok > 0 {
+			red = int(float64(g.saved)/float64(g.inTok)*100 + 0.5)
+		}
+		barLen := 0
+		if maxSaved > 0 {
+			barLen = g.saved * 14 / maxSaved
+		}
+		impact := paint(strings.Repeat("▇", barLen), pctColor(red))
+		fmt.Println("  " +
+			cell(strconv.Itoa(i+1)+".", 3, true, cGray) + " " +
+			cell(trunc(g.name, 38), 38, false, "") + " " +
+			cell(comma(g.calls), 6, true, "") + " " +
+			cell(humanize(g.saved), 8, true, cBold) + " " +
+			cell(fmt.Sprintf("%d%%", red), 5, true, pctColor(red)) + "  " +
+			impact)
+	}
 }
 
 func renderHistory(recs []statRec, global bool) {
@@ -113,25 +236,36 @@ func renderHistory(recs []statRec, global bool) {
 	if len(recs) < n {
 		n = len(recs)
 	}
-	fmt.Printf("ctk — last %d compressions%s\n\n", n, map[bool]string{true: " (all projects)", false: ""}[global])
-	fmt.Printf("%-21s%-32s%-10s%9s\n", "when", "tool", "kind", "saved")
-	fmt.Println(strings.Repeat("-", 72))
+	scope := ""
+	if global {
+		scope = " (all projects)"
+	}
 	var saved int
 	for _, r := range recs {
 		saved += r.Saved
 	}
+	fmt.Println()
+	fmt.Println(paint(fmt.Sprintf("ctk · last %d compressions%s", n, scope), cBold+cGreen))
+	fmt.Println(paint(strings.Repeat("═", 60), cGray))
+	fmt.Println("  " + cell("when", 19, false, cGray) + " " + cell("tool", 30, false, cGray) +
+		" " + cell("kind", 6, false, cGray) + " " + cell("saved", 8, true, cGray))
 	for _, r := range recs[len(recs)-n:] {
 		when := strings.Replace(r.Ts, "T", " ", 1)
 		if len(when) > 19 {
 			when = when[:19]
 		}
-		fmt.Printf("%-21s%-32s%-10s%9s\n", when, trunc(r.Tool, 30), trunc(r.Kind, 9), comma(r.Saved))
+		fmt.Println("  " + cell(when, 19, false, cGray) + " " +
+			cell(trunc(r.Tool, 30), 30, false, "") + " " +
+			cell(trunc(r.Kind, 6), 6, false, "") + " " +
+			cell(humanize(r.Saved), 8, true, cBold+cGreen))
 	}
-	fmt.Println(strings.Repeat("-", 72))
-	fmt.Printf("Total saved: %s tokens across %s calls\n", comma(saved), comma(len(recs)))
+	fmt.Println(paint(strings.Repeat("─", 60), cGray))
+	fmt.Printf("  total: %s tokens across %s calls\n",
+		paint(humanize(saved), cBold+cGreen), comma(len(recs)))
 }
 
-// findStatsFiles walks root for every .ctk/stats.jsonl, skipping heavy dirs.
+// ---- data -----------------------------------------------------------------
+
 func findStatsFiles(root string) []string {
 	skip := map[string]bool{
 		"node_modules": true, "Library": true, ".git": true, ".cache": true,
@@ -149,7 +283,7 @@ func findStatsFiles(root string) []string {
 			if _, e := os.Stat(sf); e == nil {
 				out = append(out, sf)
 			}
-			return filepath.SkipDir // don't descend into .ctk
+			return filepath.SkipDir
 		}
 		if skip[d.Name()] {
 			return filepath.SkipDir
@@ -192,6 +326,7 @@ type group struct {
 	name  string
 	calls int
 	saved int
+	inTok int
 }
 
 func groupBy(recs []statRec, key func(statRec) string) []group {
@@ -203,6 +338,7 @@ func groupBy(recs []statRec, key func(statRec) string) []group {
 		}
 		m[k].calls++
 		m[k].saved += r.Saved
+		m[k].inTok += r.InTok
 	}
 	out := make([]group, 0, len(m))
 	for _, g := range m {
@@ -212,17 +348,11 @@ func groupBy(recs []statRec, key func(statRec) string) []group {
 	return out
 }
 
-func printTable(title string, gs []group) {
-	fmt.Printf("\n%s\n", title)
-	fmt.Printf("  %-40s%7s%11s\n", "name", "calls", "saved")
-	fmt.Printf("  %s\n", strings.Repeat("-", 58))
-	for _, g := range gs {
-		fmt.Printf("  %-40s%7s%11s\n", trunc(g.name, 38), comma(g.calls), comma(g.saved))
-	}
-}
-
 func trunc(s string, n int) string {
 	if len(s) > n {
+		if n > 1 {
+			return s[:n-1] + "…"
+		}
 		return s[:n]
 	}
 	return s
@@ -230,7 +360,7 @@ func trunc(s string, n int) string {
 
 // comma formats an int with thousands separators (no external deps).
 func comma(n int) string {
-	s := fmt.Sprintf("%d", n)
+	s := strconv.Itoa(n)
 	neg := strings.HasPrefix(s, "-")
 	if neg {
 		s = s[1:]
