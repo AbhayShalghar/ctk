@@ -41,7 +41,7 @@ projection; generic JSON → cap arrays, drop empty fields, truncate strings;
 ## Install
 
 ```bash
-brew install abhayshalghar/tap/ctk     # once the tap is published (see Releasing)
+brew install AbhayShalghar/tap/ctk     # once the tap is published (see Releasing)
 ctk init --global                      # wire the hook into ~/.claude/settings.json
 # restart Claude Code (or /hooks reload), then: ctk gain
 ```
@@ -85,7 +85,7 @@ Optional `ctk.config.json` in a repo root overrides defaults:
 
 ```json
 { "disabledTools": ["Read"], "hitsKeep": 8, "minGain": 0.2,
-  "sourceFields": ["taskId", "vehicleId", "status", "type"] }
+  "sourceFields": ["id", "status", "type", "createdAt"] }
 ```
 
 `sourceFields` is the domain hook: list the `_source` keys worth keeping per repo
@@ -100,10 +100,10 @@ go build -o ctk .    # local binary
 
 ## Releasing (Homebrew)
 
-1. Create a public repo `abhayshalghar/homebrew-tap` (one time).
+1. Create a public repo `AbhayShalghar/homebrew-tap` (one time).
 2. `git tag v0.1.0 && git push origin v0.1.0`
 3. `goreleaser release --clean` — cross-compiles darwin/linux × amd64/arm64 and
-   commits the formula to the tap. Users then `brew install abhayshalghar/tap/ctk`.
+   commits the formula to the tap. Users then `brew install AbhayShalghar/tap/ctk`.
 
 ## Roadmap
 

@@ -7,7 +7,11 @@ import (
 	"testing"
 )
 
-func openSearchResponse(n int) string {
+// Fixtures are deliberately generic — they exercise the shapes ctk compresses
+// (search hits, nested arrays, grep dumps, repetitive logs) without naming any
+// real service, index, or identifier.
+
+func searchResponse(n int) string {
 	hits := make([]map[string]interface{}, n)
 	for i := 0; i < n; i++ {
 		status := "DONE"
@@ -15,19 +19,19 @@ func openSearchResponse(n int) string {
 			status = "OPEN"
 		}
 		hits[i] = map[string]interface{}{
-			"_index": "vehicle-tasks-v3",
-			"_id":    fmt.Sprintf("task-%d", 10000+i),
+			"_index": "items-v1",
+			"_id":    fmt.Sprintf("item-%d", 10000+i),
 			"_score": 1.0 - float64(i)*0.001,
 			"_source": map[string]interface{}{
-				"taskId":     fmt.Sprintf("task-%d", 10000+i),
-				"vehicleId":  fmt.Sprintf("WDB%d", 2000000+i),
-				"branchId":   2853,
-				"type":       "CLEANLINESS",
-				"status":     status,
-				"assignee":   nil,
-				"notes":      "",
-				"directives": []interface{}{},
-				"raw":        strings.Repeat("x", 400),
+				"id":       fmt.Sprintf("item-%d", 10000+i),
+				"ref":      fmt.Sprintf("REF%d", 2000000+i),
+				"group":    42,
+				"type":     "TYPE_A",
+				"status":   status,
+				"assignee": nil,
+				"notes":    "",
+				"tags":     []interface{}{},
+				"blob":     strings.Repeat("x", 400),
 			},
 		}
 	}
@@ -41,28 +45,28 @@ func openSearchResponse(n int) string {
 	return string(b)
 }
 
-func grpcDump(n int) string {
-	tasks := make([]map[string]interface{}, n)
+func nestedJSON(n int) string {
+	items := make([]map[string]interface{}, n)
 	for i := 0; i < n; i++ {
-		tasks[i] = map[string]interface{}{
-			"id":      fmt.Sprintf("task-%d", i),
-			"vehicle": map[string]interface{}{"id": fmt.Sprintf("v-%d", i), "model": "", "color": ""},
+		items[i] = map[string]interface{}{
+			"id":      fmt.Sprintf("item-%d", i),
+			"child":   map[string]interface{}{"id": fmt.Sprintf("c-%d", i), "name": "", "color": ""},
 			"meta":    map[string]interface{}{"source": "", "retries": 0, "tags": []interface{}{}},
 			"payload": strings.Repeat("p", 300),
 		}
 	}
 	b, _ := json.Marshal(map[string]interface{}{
-		"tasks": tasks, "nextPageToken": "", "errors": []interface{}{},
+		"items": items, "nextPageToken": "", "errors": []interface{}{},
 	})
 	return string(b)
 }
 
 func grepDump() string {
-	files := []string{"src/A.java", "src/B.java", "src/C.java"}
+	files := []string{"src/A.go", "src/B.go", "src/C.go"}
 	var lines []string
 	for _, f := range files {
 		for i := 1; i <= 15; i++ {
-			lines = append(lines, fmt.Sprintf("%s:%d:    log.info(M, \"task {}\", id);", f, i*7))
+			lines = append(lines, fmt.Sprintf("%s:%d:    log.Info(\"handling %%d\", id)", f, i*7))
 		}
 	}
 	return strings.Join(lines, "\n")
@@ -78,10 +82,10 @@ func verboseLog(n int) string {
 	return strings.Join(lines, "\n")
 }
 
-func TestOpenSearch(t *testing.T) {
-	r, ok := Compress("mcp__prod-opensearch__SearchIndexTool", openSearchResponse(50), DefaultConfig())
+func TestSearchResponse(t *testing.T) {
+	r, ok := Compress("mcp__search__query", searchResponse(50), DefaultConfig())
 	if !ok || r.Kind != "opensearch" {
-		t.Fatalf("expected opensearch compression, got %+v ok=%v", r, ok)
+		t.Fatalf("expected search compression, got %+v ok=%v", r, ok)
 	}
 	if r.Gain < 0.7 {
 		t.Errorf("expected >70%% gain, got %.2f", r.Gain)
@@ -102,7 +106,7 @@ func TestOpenSearch(t *testing.T) {
 }
 
 func TestGenericJSON(t *testing.T) {
-	r, ok := Compress("mcp__production-debugger__query_service", grpcDump(40), DefaultConfig())
+	r, ok := Compress("mcp__debug__fetch", nestedJSON(40), DefaultConfig())
 	if !ok {
 		t.Fatal("expected compression")
 	}
@@ -152,12 +156,12 @@ func TestSafetyNoOps(t *testing.T) {
 
 func TestSourceProjection(t *testing.T) {
 	cfg := DefaultConfig()
-	cfg.SourceFields = []string{"taskId", "status"}
-	r, _ := Compress("mcp__os__Search", openSearchResponse(50), cfg)
-	if strings.Contains(r.Text, "vehicleId") {
-		t.Error("projection should drop vehicleId")
+	cfg.SourceFields = []string{"id", "status"}
+	r, _ := Compress("mcp__search__query", searchResponse(50), cfg)
+	if strings.Contains(r.Text, "\"ref\"") {
+		t.Error("projection should drop ref")
 	}
-	if !strings.Contains(r.Text, "taskId") {
-		t.Error("projection should keep taskId")
+	if !strings.Contains(r.Text, "\"id\"") {
+		t.Error("projection should keep id")
 	}
 }

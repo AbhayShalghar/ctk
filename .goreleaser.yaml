@@ -25,15 +25,15 @@ archives:
 checksum:
   name_template: "checksums.txt"
 
-# Publishes a formula to github.com/abhayshalghar/homebrew-tap so users can:
-#   brew install abhayshalghar/tap/ctk
+# Publishes a formula to github.com/AbhayShalghar/homebrew-tap so users can:
+#   brew install AbhayShalghar/tap/ctk
 # Create that (public) repo once; GoReleaser commits the formula on each release.
 brews:
   - name: ctk
     repository:
-      owner: abhayshalghar
+      owner: AbhayShalghar
       name: homebrew-tap
-    homepage: "https://github.com/abhayshalghar/ctk"
+    homepage: "https://github.com/AbhayShalghar/ctk"
     description: "Context Token Killer — compresses Claude Code tool output (MCP, native tools, Bash)"
     license: "MIT"
     install: |
