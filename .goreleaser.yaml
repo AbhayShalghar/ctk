@@ -1,0 +1,45 @@
+# GoReleaser config — cross-compiles ctk and publishes a Homebrew formula.
+# Release flow:  git tag v0.1.0 && git push --tags && goreleaser release --clean
+version: 2
+
+before:
+  hooks:
+    - go mod tidy
+
+builds:
+  - id: ctk
+    main: .
+    binary: ctk
+    env:
+      - CGO_ENABLED=0
+    ldflags:
+      - -s -w -X main.version={{.Version}}
+    goos: [darwin, linux]
+    goarch: [amd64, arm64]
+
+archives:
+  - id: ctk
+    formats: [tar.gz]
+    name_template: "{{ .ProjectName }}_{{ .Os }}_{{ .Arch }}"
+
+checksum:
+  name_template: "checksums.txt"
+
+# Publishes a formula to github.com/abhayshalghar/homebrew-tap so users can:
+#   brew install abhayshalghar/tap/ctk
+# Create that (public) repo once; GoReleaser commits the formula on each release.
+brews:
+  - name: ctk
+    repository:
+      owner: abhayshalghar
+      name: homebrew-tap
+    homepage: "https://github.com/abhayshalghar/ctk"
+    description: "Context Token Killer — compresses Claude Code tool output (MCP, native tools, Bash)"
+    license: "MIT"
+    install: |
+      bin.install "ctk"
+    test: |
+      system "#{bin}/ctk", "version"
+
+release:
+  draft: false
