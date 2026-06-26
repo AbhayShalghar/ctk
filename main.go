@@ -18,7 +18,10 @@ usage:
   ctk init [path]          wire the hook into a repo's .claude/settings.json
   ctk init --global        wire it into ~/.claude/settings.json (all projects)
   ctk uninstall [path]     remove the ctk hook entry
-  ctk gain [--history]     show token savings (per repo); --reset to clear
+  ctk gain                 token savings for the current project
+  ctk gain --global        savings across ALL projects (works from any folder)
+  ctk gain --history       recent per-call savings (+ --global for all projects)
+  ctk gain --reset         clear stats (+ --global clears every project)
   ctk version
 
 init flags:
