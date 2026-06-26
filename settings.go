@@ -8,7 +8,7 @@ import (
 	"strings"
 )
 
-const defaultMatcher = "Bash|Grep|Read|mcp__.*"
+const defaultMatcher = "Bash|Grep|mcp__.*"
 
 func cmdInit(args []string) {
 	matcher := defaultMatcher
