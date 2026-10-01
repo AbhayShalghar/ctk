@@ -22,6 +22,8 @@ usage:
   ctk gain --global        savings across ALL projects (works from any folder)
   ctk gain --history       recent per-call savings (+ --global for all projects)
   ctk gain --reset         clear stats (+ --global clears every project)
+  ctk analyze              usage efficiency from Claude transcripts + tips to improve
+                           (--global all projects, --days N, --json)
   ctk version
 
 init flags:
@@ -45,6 +47,8 @@ func main() {
 		cmdUninstall(os.Args[2:])
 	case "gain":
 		cmdGain(os.Args[2:])
+	case "analyze":
+		cmdAnalyze(os.Args[2:])
 	case "version", "--version", "-v":
 		fmt.Println("ctk", version)
 	default:
