@@ -76,8 +76,46 @@ ctk init --with-rtk      drop Bash from the matcher so rtk owns shell commands
 ctk init --matcher S     custom tool matcher (default: Bash|Grep|Read|mcp__.*)
 ctk uninstall [path]     remove the ctk hook entry (leaves other hooks intact)
 ctk gain [--history]     token-savings report (per repo); --reset to clear
+ctk analyze [--global]   where your Claude Code spend goes + ranked ways to save (see below)
 ctk version
 ```
+
+## Analyze your usage
+
+`ctk gain` shows what ctk saved. `ctk analyze` shows what you spent and where you
+could spend less. It reads Claude Code's own transcripts
+(`~/.claude/projects/**.jsonl`), so it needs **no hook and no install step** and works
+on history from before ctk existed.
+
+```
+ctk analyze                # current folder's project
+ctk analyze --global       # every project
+ctk analyze --days 7       # only transcripts touched in the last 7 days
+ctk analyze --json         # machine-readable
+```
+
+The report has a health scorecard, a ranked **Where you can save** list with dollar
+ranges, spend by token type / project / session, the heaviest tool output, and the
+model mix. Subagent runs (`<session>/subagents/agent-*.jsonl`) are included: their
+cost is rolled into the parent session and project.
+
+How the numbers are made:
+
+- A "session" is one top-level transcript file. Messages are de-duplicated by
+  `message.id` (Claude Code writes one line per content block, so naive sums are 2-3x too high).
+- Cost is **API-equivalent**: tokens x list price per model (`prices.go`). On a Pro/Max
+  plan you aren't billed per token, so read it as relative load, not your invoice.
+- Cache read/write prices for a few models are assumed (1.25x / 0.1x of input) because
+  they aren't published; override any price in `~/.config/ctk/prices.json`:
+
+  ```json
+  { "claude-opus-5": { "input": 5, "output": 25, "cacheWrite": 6.25, "cacheRead": 0.5 } }
+  ```
+
+- Savings are **estimates, not measurements**. Each is a range built from a stated
+  assumption (e.g. "between half and all of the context above 200K could be dropped"),
+  they overlap, and they must not be added together. Items worth under 1% of spend are hidden.
+- Only transcripts still on disk are counted; Claude Code prunes old ones.
 
 ## Running alongside rtk
 
