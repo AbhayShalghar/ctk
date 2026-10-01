@@ -28,7 +28,7 @@ checksum:
 # Publishes a Homebrew CASK to github.com/AbhayShalghar/homebrew-tap (under Casks/)
 # so macOS users can: brew install AbhayShalghar/tap/ctk
 # Casks are macOS-only; Linux users grab ctk_linux_*.tar.gz from the release.
-# The post-install hook strips the Gatekeeper quarantine so the unsigned binary runs.
+# The postflight step strips the Gatekeeper quarantine so the unsigned binary runs.
 homebrew_casks:
   - name: ctk
     binaries:
@@ -39,12 +39,15 @@ homebrew_casks:
       branch: main
     homepage: "https://github.com/AbhayShalghar/ctk"
     description: "Context Token Killer — compresses Claude Code tool output (MCP, native tools, Bash)"
-    hooks:
-      post:
-        install: |
-          if OS.mac?
-            system_command "/usr/bin/xattr", args: ["-dr", "com.apple.quarantine", "#{staged_path}/ctk"]
-          end
+    # Declarative `postflight_steps` (the `postflight do` block that `hooks.post`
+    # generates is deprecated in Homebrew). Strips the Gatekeeper quarantine so the
+    # unsigned binary runs; steps default to the cask's staged path.
+    custom_block: |
+      postflight_steps do
+        on_macos do
+          run "/usr/bin/xattr", args: ["-dr", "com.apple.quarantine", "ctk"], chdir: "."
+        end
+      end
 
 release:
   draft: false
