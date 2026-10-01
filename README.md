@@ -103,13 +103,15 @@ How the numbers are made:
 
 - A "session" is one top-level transcript file. Messages are de-duplicated by
   `message.id` (Claude Code writes one line per content block, so naive sums are 2-3x too high).
-- Cost is **API-equivalent**: tokens x list price per model (`prices.go`). On a Pro/Max
-  plan you aren't billed per token, so read it as relative load, not your invoice.
-- Cache read/write prices for a few models are assumed (1.25x / 0.1x of input) because
-  they aren't published; override any price in `~/.config/ctk/prices.json`:
+- Cost is **API-equivalent**: tokens x the published list price per model
+  (`prices.go`, copied from the [pricing page](https://platform.claude.com/docs/en/about-claude/pricing)).
+  5-minute and 1-hour cache writes are priced separately (1.25x vs 2x input), using the
+  split recorded in each transcript. On a Pro/Max plan you aren't billed per token, so
+  read it as relative load, not your invoice. Prices change; override any model in
+  `~/.config/ctk/prices.json`:
 
   ```json
-  { "claude-opus-5": { "input": 5, "output": 25, "cacheWrite": 6.25, "cacheRead": 0.5 } }
+  { "claude-opus-5": { "input": 5, "output": 25, "cacheWrite": 6.25, "cacheWrite1h": 10, "cacheRead": 0.5 } }
   ```
 
 - Savings are **estimates, not measurements**. Each is a range built from a stated
@@ -158,7 +160,7 @@ That cross-compiles darwin/linux × amd64/arm64, publishes the GitHub release, a
 commits a Homebrew **cask** to the tap under `Casks/`. macOS users then
 `brew install AbhayShalghar/tap/ctk`. Casks are macOS-only, so Linux users install
 by downloading the `ctk_linux_*.tar.gz` asset from the release. The cask's
-post-install hook strips the Gatekeeper quarantine so the unsigned binary runs.
+`postflight_steps` stanza strips the Gatekeeper quarantine so the unsigned binary runs.
 
 ## Roadmap
 

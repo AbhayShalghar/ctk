@@ -20,6 +20,22 @@ type usageBlock struct {
 	Out         int `json:"output_tokens"`
 	CacheRead   int `json:"cache_read_input_tokens"`
 	CacheCreate int `json:"cache_creation_input_tokens"`
+	// Breakdown of CacheCreate by cache lifetime. 1-hour writes cost 2x input
+	// versus 1.25x for 5-minute writes, so the split matters. Absent in old transcripts.
+	CacheCreation struct {
+		Eph5m int `json:"ephemeral_5m_input_tokens"`
+		Eph1h int `json:"ephemeral_1h_input_tokens"`
+	} `json:"cache_creation"`
+}
+
+// writeTokens splits CacheCreate into 5-minute and 1-hour tokens. Anything the
+// breakdown doesn't account for (or all of it, if absent) is priced as 5-minute.
+func (u usageBlock) writeTokens() (m5, h1 int) {
+	h1 = u.CacheCreation.Eph1h
+	if h1 > u.CacheCreate {
+		h1 = u.CacheCreate
+	}
+	return u.CacheCreate - h1, h1
 }
 
 type contentBlock struct {

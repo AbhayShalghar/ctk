@@ -92,6 +92,20 @@ func pct(a, b int) float64 {
 
 const ctxCap = 200_000 // context size we recommend compacting at
 
+// frac1h is the share of this session's cache-write tokens that were 1-hour writes.
+func (s *session) frac1h() float64 {
+	var h1, all int
+	for _, t := range s.turns {
+		_, h := t.usage.writeTokens()
+		h1 += h
+		all += t.usage.CacheCreate
+	}
+	if all == 0 {
+		return 0
+	}
+	return float64(h1) / float64(all)
+}
+
 // carried estimates what one tool result costs over the rest of the session:
 // one cache write on the turn that first sees it, then a cache read per later turn.
 func (s *session) carried(rec resultRec) float64 {
@@ -100,7 +114,9 @@ func (s *session) carried(rec resultRec) float64 {
 	}
 	pr, _ := priceFor(s.turns[rec.at].model)
 	later := len(s.turns) - rec.at - 1
-	return float64(rec.tokens) * (pr.CacheWrite + pr.CacheRead*float64(later)) / 1e6
+	// a result is written to the cache once, at this session's usual 5m/1h mix
+	write := pr.CacheWrite*(1-s.frac1h()) + pr.writeRate1h()*s.frac1h()
+	return float64(rec.tokens) * (write + pr.CacheRead*float64(later)) / 1e6
 }
 
 func analyze(sessions []*session) report {
@@ -133,7 +149,7 @@ func analyze(sessions []*session) report {
 			r.CacheRead += u.CacheRead
 			r.CacheCreate += u.CacheCreate
 			r.CostByType["Cache read"] += float64(u.CacheRead) * pr.CacheRead / 1e6
-			r.CostByType["Cache write"] += float64(u.CacheCreate) * pr.CacheWrite / 1e6
+			r.CostByType["Cache write"] += pr.writeCost(u)
 			r.CostByType["Fresh input"] += float64(u.In) * pr.In / 1e6
 			r.CostByType["Output"] += float64(u.Out) * pr.Out / 1e6
 			c := u.ctx()

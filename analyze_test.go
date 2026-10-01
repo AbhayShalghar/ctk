@@ -277,3 +277,36 @@ func TestRenderDoesNotPanicOnEmptyOrFullReport(t *testing.T) {
 	renderReport(analyze([]*session{mustParse(t, path, "-Users-x-proj")}), true)
 	renderReport(analyze([]*session{mustParse(t, path, "-Users-x-proj")}), false)
 }
+
+func TestOneHourCacheWritesCostTwiceInput(t *testing.T) {
+	p, _ := priceFor("claude-opus-5") // official: input 5, 5m write 6.25, 1h write 10, read 0.50
+	u := usageBlock{CacheCreate: 1_000_000}
+	u.CacheCreation.Eph5m, u.CacheCreation.Eph1h = 400_000, 600_000
+	if got, want := p.cost(u), 0.4*6.25+0.6*10.0; !near(got, want) {
+		t.Errorf("split write cost = %v, want %v", got, want)
+	}
+	// No breakdown (old transcripts): everything is priced as a 5-minute write.
+	if got, want := p.cost(usageBlock{CacheCreate: 1_000_000}), 6.25; !near(got, want) {
+		t.Errorf("unsplit write cost = %v, want %v", got, want)
+	}
+	// A breakdown larger than the total can't create tokens.
+	bad := usageBlock{CacheCreate: 100}
+	bad.CacheCreation.Eph1h = 500
+	if m5, h1 := bad.writeTokens(); m5 != 0 || h1 != 100 {
+		t.Errorf("writeTokens = %d,%d, want 0,100", m5, h1)
+	}
+}
+
+func TestOfficialPriceSpotChecks(t *testing.T) {
+	// Values from the published pricing table; Fable 5.1 reads at 0.025x, Opus 5.5 at 0.05x.
+	for model, want := range map[string]price{
+		"claude-fable-5-1":  {10, 50, 12.5, 20, 0.25},
+		"claude-fable-5":    {10, 50, 12.5, 20, 1},
+		"claude-opus-5-5":   {4, 20, 5, 8, 0.20},
+		"claude-sonnet-5-5": {2, 10, 2.5, 4, 0.20},
+	} {
+		if got, _ := priceFor(model); got != want {
+			t.Errorf("%s = %+v, want %+v", model, got, want)
+		}
+	}
+}
